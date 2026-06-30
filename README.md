@@ -1,7 +1,7 @@
 # WC26 PREDICTOR
 
 <p align="center">
-  <img src="static/fifa.jpg" alt="FIFA" width="400"/>
+  <img src="static/fifa.jpg" alt="FIFA" width="350"/>
 </p>
 
 **WC26 Predictor** es un proyecto personal de Machine Learning orientado a la predicción de partidos internacionales, con especial enfoque en la *Copa Mundial* de la FIFA 2026. A partir del dataset [**international_results**](https://github.com/martj42/international_results), el sistema estima la fuerza ofensiva y defensiva de cada selección mediante un modelo Dixon-Coles. Con estas estimaciones, se entrenan dos enfoques de predicción de goles esperados:
