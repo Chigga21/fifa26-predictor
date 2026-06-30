@@ -1,6 +1,7 @@
 # World Cup 2026 Predictor
 
 <p align="center">
+<<<<<<< HEAD
   <img src="static/fifa.jpg" alt="FIFA" width="350"/>
 </p>
 
@@ -15,6 +16,20 @@ The goal predictions are transformed into a probability matrix based on `Poisson
 
 ## Running the project
 
+=======
+  <img src="static/fifa.jpg" alt="FIFA" width="250"/>
+</p>
+
+**WC26 Predictor** is a personal Machine Learning project focused on predicting international matches, with a special emphasis on the *FIFA World Cup 2026*. Using the [**international_results**](https://github.com/martj42/international_results) dataset, the system estimates each national team's offensive and defensive strength through a Dixon-Coles model. With these estimates, two expected-goals prediction approaches are trained:
+
+- A Bayesian MCMC model
+- An XGBoost regression model
+
+The goal predictions are transformed into a probability matrix based on `Poisson` distributions, which allows the final 1X2 outcome probabilities to be calculated.
+
+## Running the project
+
+>>>>>>> 0fcc99ab7f3e7ef9d417ada1540b36bcf4a29e9a
 Create and activate a virtual environment:
 
 ```bash
@@ -58,4 +73,9 @@ The project has an automated *testsuite* that you can run with:
 
 ```bash
 pytest -v
+<<<<<<< HEAD
 ```
+=======
+```
+
+>>>>>>> 0fcc99ab7f3e7ef9d417ada1540b36bcf4a29e9a
