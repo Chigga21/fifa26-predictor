@@ -30,7 +30,7 @@ python main.py
 
 ## Visualizing results
 
-Optionally, you can generate visualizations of the results with `pyplot` from the interactive interface.
+Optionally, you can generate visualizations of the results with `matplotlib` from the interactive interface.
 
 The generated plots are stored in the `outputs/` directory.
 
@@ -58,9 +58,5 @@ The project has an automated *testsuite* that you can run with:
 
 ```bash
 pytest -v
-<<<<<<< HEAD
-```
-=======
 ```
 
->>>>>>> 0fcc99ab7f3e7ef9d417ada1540b36bcf4a29e9a
