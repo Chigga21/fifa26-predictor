@@ -46,9 +46,17 @@ NO_COLOR=1 python main.py
 > **This project was developed for educational and research purposes.** Although the model may produce interesting predictions, it is not recommended for use in betting, since no model can predict football's inherent uncertainty.
 > 
 
-<p align="center">
-  <img src="static/apuesta.jpg" alt="Bet" width="500"/>
-</p>
+<table align="center">
+  <tr>
+    <td align="center">
+      <img src="static/terminal.jpg" alt="Bet" width="500"/>
+    </td>
+    <td width="10"></td>
+    <td align="center">
+      <img src="static/apuesta.jpg" alt="Placeholder" width="480"/>
+    </td>
+  </tr>
+</table>
 
 That said, the program has personally produced accurate results on a few occasions. This should be considered anecdotal and not a reliable statistical basis.
 
