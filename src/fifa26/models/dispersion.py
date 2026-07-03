@@ -1,16 +1,4 @@
 """Cabeza de dispersion condicionada a la brecha de fuerza.
-
-Estima cuanta sobre-dispersion permitir en el marcador segun que tan favorito es un
-equipo. Calibra un factor de dispersion D igual a varianza sobre media a partir de los
-residuos de entrenamiento, agrupando los partidos por magnitud de la brecha de fuerza.
-A mayor brecha mayor D, lo que la matriz Negative Binomial traduce en una cola mas ancha
-del marcador, no solo en una media mayor.
-
-La interfaz DispersionModel deja preparado el enganche para sustituir este mapeo
-parametrico por un segundo regresor entrenado, por ejemplo un XGBoost sobre el residuo
-al cuadrado, sin tocar el resto del pipeline.
-
-Autor Chigga21
 """
 from __future__ import annotations
 
@@ -23,7 +11,6 @@ from fifa26.models.features import side_strength_gap
 
 
 class CalibratedDispersionEstimator(DispersionModel):
-    """Mapeo parametrico D igual a uno mas pendiente por la magnitud de la brecha."""
 
     name = "Calibrated-Gap"
 
@@ -64,12 +51,6 @@ class CalibratedDispersionEstimator(DispersionModel):
         return np.clip(1.0 + self._slope * gap, 1.0, self._max_dispersion)
 
     def _fit_slope(self, gaps: np.ndarray, goals: np.ndarray) -> float:
-        """Ajusta D menos uno igual a pendiente por brecha sobre buckets de brecha.
-
-        Cada bucket aporta su D empirico igual a varianza sobre media, la pendiente sale
-        de una regresion sin intercepto ponderada por el tamano del bucket y se fuerza a
-        no ser negativa para que la dispersion nunca baje de Poisson.
-        """
         if gaps.size == 0:
             return 0.0
         edges = np.quantile(gaps, np.linspace(0.0, 1.0, self._n_buckets + 1))
