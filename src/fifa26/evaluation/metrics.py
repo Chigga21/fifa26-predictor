@@ -7,6 +7,7 @@ score.
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 from fifa26.domain.entities import MatchPrediction, Outcome
@@ -31,6 +32,42 @@ class EvaluationResult:
             f"{self.model_name:<14} RPS={self.rps:.4f}  accuracy 1X2={self.accuracy:.3f}  "
             f"logloss={self.log_loss:.3f}  (n={self.n_matches})"
         )
+
+
+@dataclass(frozen=True)
+class GoalsCalibration:
+    """Calibracion de la media de goles, guardrail para que la sobre-dispersion no
+    infle ni deprima el total de goles esperado frente al real.
+    """
+
+    rmse: float
+    mae: float
+    total_expected: float
+    total_actual: float
+    n: int
+
+    def __str__(self) -> str:
+        bias = self.total_expected - self.total_actual
+        return (
+            f"goles RMSE={self.rmse:.3f}  MAE={self.mae:.3f}  "
+            f"esperados={self.total_expected:.1f} vs reales={self.total_actual:.1f} "
+            f"(sesgo={bias:+.1f}, n={self.n})"
+        )
+
+
+def goals_calibration(
+    expected: Sequence[float], actual: Sequence[float]
+) -> GoalsCalibration:
+    """Compara los goles esperados por lado con los reales sobre un conjunto de prueba"""
+    if len(expected) != len(actual):
+        raise ValueError("esperados y reales deben tener igual longitud")
+    n = len(expected)
+    if n == 0:
+        return GoalsCalibration(0.0, 0.0, 0.0, 0.0, 0)
+    diffs = [e - a for e, a in zip(expected, actual)]
+    rmse = math.sqrt(sum(d * d for d in diffs) / n)
+    mae = sum(abs(d) for d in diffs) / n
+    return GoalsCalibration(rmse, mae, float(sum(expected)), float(sum(actual)), n)
 
 
 def _probs(pred: MatchPrediction) -> tuple[float, float, float]:

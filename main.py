@@ -30,6 +30,7 @@ from fifa26.data.cleaning import MatchCleaner  # noqa: E402
 from fifa26.data.csv_repository import CsvMatchRepository  # noqa: E402
 from fifa26.features.dixon_coles import DixonColesEstimator  # noqa: E402
 from fifa26.models.factory import ModelFactory  # noqa: E402
+from fifa26.prediction.calibration import CalibratedGoalModel  # noqa: E402
 from fifa26.prediction.outcome import OutcomeCalculator  # noqa: E402
 from fifa26.visualization.plots import Visualizer  # noqa: E402
 
@@ -41,8 +42,14 @@ def build_trainer() -> tuple[Trainer, OutcomeCalculator]:
     repository = CsvMatchRepository(DATA_DIR / "results.csv")
     cleaner = MatchCleaner(min_year=2018, min_matches_per_team=8)
     dixon_coles = DixonColesEstimator(half_life_days=540)
+    # El XGBoost lleva el guardrail de calibracion leakage-free; el bayesiano no, porque su
+    # origen movil exigiria varias corridas MCMC completas.
+    xgboost = CalibratedGoalModel(
+        make_base=lambda: ModelFactory.create("xgboost"),
+        dixon_coles_factory=lambda: DixonColesEstimator(half_life_days=540),
+    )
     models = [
-        ModelFactory.create("xgboost"),
+        xgboost,
         ModelFactory.create("bayesian", draws=1000, tune=1000, chains=4),
     ]
     outcome = OutcomeCalculator()

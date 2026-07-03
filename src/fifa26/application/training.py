@@ -12,12 +12,13 @@ import pandas as pd
 
 from fifa26.data.cleaning import MatchCleaner
 from fifa26.domain.entities import MatchPrediction, Outcome, TeamStrength
-from fifa26.domain.interfaces import GoalModel, MatchRepository
+from fifa26.domain.interfaces import DispersionModel, GoalModel, MatchRepository
 from fifa26.evaluation.cross_validation import predict_fixtures, rolling_origin_evaluate
 from fifa26.evaluation.metrics import EvaluationResult, evaluate_1x2
 from fifa26.features.dixon_coles import DixonColesEstimator
+from fifa26.models.dispersion import CalibratedDispersionEstimator
+from fifa26.prediction.negative_binomial_matrix import NegativeBinomialMatrixBuilder
 from fifa26.prediction.outcome import OutcomeCalculator
-from fifa26.prediction.poisson_matrix import PoissonMatrixBuilder
 
 
 @dataclass
@@ -30,7 +31,8 @@ class TrainedArtifacts:
     models: list[GoalModel]
     evaluations: list[EvaluationResult]
     strengths: dict[str, TeamStrength]
-    matrix_builder: PoissonMatrixBuilder
+    matrix_builder: NegativeBinomialMatrixBuilder
+    dispersion: DispersionModel
     teams: list[str]
     train: pd.DataFrame
     test: pd.DataFrame
@@ -64,7 +66,8 @@ class Trainer:
         self.test: pd.DataFrame | None = None
         self.strengths: dict[str, TeamStrength] = {}
         self.teams: list[str] = []
-        self.matrix_builder: PoissonMatrixBuilder | None = None
+        self.matrix_builder: NegativeBinomialMatrixBuilder | None = None
+        self.dispersion: DispersionModel | None = None
         self.evaluations: list[EvaluationResult] = []
         self._actual: list[Outcome] = []
 
@@ -72,7 +75,8 @@ class Trainer:
         # para obtener la mejor fidelidad posible
         self._prod_strengths: dict[str, TeamStrength] = {}
         self._prod_teams: list[str] = []
-        self._prod_matrix_builder: PoissonMatrixBuilder | None = None
+        self._prod_matrix_builder: NegativeBinomialMatrixBuilder | None = None
+        self._prod_dispersion: DispersionModel | None = None
 
     def load_and_split(self) -> tuple[pd.DataFrame, pd.DataFrame]:
         matches = self._cleaner.clean(self._repository.load())
@@ -86,9 +90,10 @@ class Trainer:
         self._dixon_coles.fit(self.train)
         self.strengths = self._dixon_coles.strengths
         self.teams = sorted(self.strengths)
-        self.matrix_builder = PoissonMatrixBuilder(
+        self.matrix_builder = NegativeBinomialMatrixBuilder(
             self._max_goals, rho=self._dixon_coles.rho
         )
+        self.dispersion = CalibratedDispersionEstimator().fit(self.train, self.strengths)
         self._actual = [
             Outcome.from_scores(h, a)
             for h, a in zip(self.test["home_score"], self.test["away_score"])
@@ -97,7 +102,9 @@ class Trainer:
 
     def train_model(self, model: GoalModel) -> EvaluationResult:
         model.fit(self.train, self.strengths)
-        preds = self._predict_fixtures(model, self.test, self.matrix_builder)
+        preds = self._predict_fixtures(
+            model, self.test, self.matrix_builder, self.dispersion
+        )
         result = evaluate_1x2(model.name, preds, self._actual)
         self.evaluations.append(result)
         return result
@@ -116,8 +123,11 @@ class Trainer:
         self._dixon_coles.fit(self.full)
         self._prod_strengths = self._dixon_coles.strengths
         self._prod_teams = sorted(self._prod_strengths)
-        self._prod_matrix_builder = PoissonMatrixBuilder(
+        self._prod_matrix_builder = NegativeBinomialMatrixBuilder(
             self._max_goals, rho=self._dixon_coles.rho
+        )
+        self._prod_dispersion = CalibratedDispersionEstimator().fit(
+            self.full, self._prod_strengths
         )
         return self._prod_strengths
 
@@ -146,6 +156,7 @@ class Trainer:
         strengths = self._prod_strengths or self.strengths
         teams = self._prod_teams or self.teams
         matrix_builder = self._prod_matrix_builder or self.matrix_builder
+        dispersion = self._prod_dispersion or self.dispersion
         return TrainedArtifacts(
             best_model=best_model,
             best_accuracy=best_result.accuracy,
@@ -154,6 +165,7 @@ class Trainer:
             evaluations=list(self.evaluations),
             strengths=strengths,
             matrix_builder=matrix_builder,
+            dispersion=dispersion,
             teams=teams,
             train=self.train,
             test=self.test,
@@ -186,6 +198,9 @@ class Trainer:
         self,
         model: GoalModel,
         fixtures: pd.DataFrame,
-        matrix_builder: PoissonMatrixBuilder,
+        matrix_builder: NegativeBinomialMatrixBuilder,
+        dispersion: DispersionModel | None = None,
     ) -> list[MatchPrediction]:
-        return predict_fixtures(model, fixtures, matrix_builder, self._outcome)
+        return predict_fixtures(
+            model, fixtures, matrix_builder, self._outcome, dispersion
+        )

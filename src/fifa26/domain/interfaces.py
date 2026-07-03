@@ -45,3 +45,26 @@ class GoalModel(ABC):
     ) -> tuple[np.ndarray, np.ndarray]:
         """Devuelve los arrays local y visitante alineados con los fixtures"""
         raise NotImplementedError
+
+
+class DispersionModel(ABC):
+    """Cabeza que estima la sobre-dispersion del marcador segun la brecha de fuerza.
+    """
+
+    name: str
+
+    @abstractmethod
+    def fit(
+        self,
+        matches: pd.DataFrame,
+        strengths: dict[str, TeamStrength],
+    ) -> "DispersionModel":
+        """Calibra la relacion entre la brecha de fuerza y la dispersion"""
+        raise NotImplementedError
+
+    @abstractmethod
+    def predict_dispersion(
+        self, fixtures: pd.DataFrame
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Factores de dispersion local y visitante alineados con los fixtures"""
+        raise NotImplementedError

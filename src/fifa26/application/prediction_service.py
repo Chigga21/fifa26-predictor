@@ -14,9 +14,9 @@ import pandas as pd
 
 from fifa26.application.training import TrainedArtifacts
 from fifa26.domain.entities import MatchPrediction, ScoreMatrix
-from fifa26.domain.interfaces import GoalModel
+from fifa26.domain.interfaces import DispersionModel, GoalModel
+from fifa26.prediction.negative_binomial_matrix import NegativeBinomialMatrixBuilder
 from fifa26.prediction.outcome import OutcomeCalculator
-from fifa26.prediction.poisson_matrix import PoissonMatrixBuilder
 
 
 @dataclass(frozen=True)
@@ -32,12 +32,14 @@ class PredictionService:
     def __init__(
         self,
         models: list[GoalModel],
-        matrix_builder: PoissonMatrixBuilder,
+        matrix_builder: NegativeBinomialMatrixBuilder,
+        dispersion: DispersionModel,
         outcome_calculator: OutcomeCalculator,
         teams: list[str],
     ) -> None:
         self._models = list(models)
         self._matrix_builder = matrix_builder
+        self._dispersion = dispersion
         self._outcome = outcome_calculator
         self._teams = list(teams)
 
@@ -48,6 +50,7 @@ class PredictionService:
         return cls(
             models=artifacts.models,
             matrix_builder=artifacts.matrix_builder,
+            dispersion=artifacts.dispersion,
             outcome_calculator=outcome_calculator,
             teams=artifacts.teams,
         )
@@ -105,8 +108,14 @@ class PredictionService:
             ]
         )
         lambda_home, lambda_away = model.predict_expected_goals(fixture)
+        d_home, d_away = self._dispersion.predict_dispersion(fixture)
         score_matrix = self._matrix_builder.build(
-            home_team, away_team, float(lambda_home[0]), float(lambda_away[0])
+            home_team,
+            away_team,
+            float(lambda_home[0]),
+            float(lambda_away[0]),
+            float(d_home[0]),
+            float(d_away[0]),
         )
         prediction = self._outcome.to_prediction(score_matrix)
         top = self._outcome.top_scorelines(score_matrix, top_n=top_n)

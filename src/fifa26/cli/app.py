@@ -256,42 +256,62 @@ class InteractiveApp:
         print()
 
         names = [name for name, _ in forecasts]
-        label_w = 22
-        col_w = 16
+
+        expected = [
+            f"{f.score_matrix.lambda_home:.2f} - {f.score_matrix.lambda_away:.2f}"
+            for _, f in forecasts
+        ]
+        results = [
+            self._outcome_label(f.prediction.predicted_outcome, home, away)
+            for _, f in forecasts
+        ]
+
+        # Filas principales de la tabla. Se recogen antes de imprimir para medir
+        # el ancho real del contenido y evitar que un nombre de pais largo, en la
+        # etiqueta o en la celda de resultado, descuadre las columnas.
+        rows = [
+            ("Expected goals", expected),
+            (f"[1] {home} wins", [f"{f.prediction.prob_home_win:5.1%}" for _, f in forecasts]),
+            ("[X] Draw", [f"{f.prediction.prob_draw:5.1%}" for _, f in forecasts]),
+            (f"[2] {away} wins", [f"{f.prediction.prob_away_win:5.1%}" for _, f in forecasts]),
+            ("Most likely result", results),
+        ]
+
+        depth = min(10, *(len(f.top_scorelines) for _, f in forecasts))
+        scoreline_rows = [
+            (
+                f"{rank + 1:>2}.",
+                [
+                    f"{f.top_scorelines[rank][0]} {f.top_scorelines[rank][1]:4.0%}"
+                    for _, f in forecasts
+                ],
+            )
+            for rank in range(depth)
+        ]
+
+        # Ancho de la etiqueta y de cada columna medidos sobre todo el contenido,
+        # con un minimo para que las tablas cortas conserven su forma habitual.
+        all_rows = [("", names), *rows, *scoreline_rows]
+        label_w = max(22, *(len(label) for label, _ in all_rows)) + 2
+        col_w = max(16, *(len(cell) for _, cells in all_rows for cell in cells)) + 2
 
         def row(label: str, cells: list[str]) -> str:
             body = "".join(f"{c:<{col_w}}" for c in cells)
             return f"  {label:<{label_w}}{body}"
 
         # Cabecera con el nombre de cada modelo. El color envuelve toda la linea
-        # para no romper el ancho fijo de las columnas.
+        # para no romper el ancho de las columnas.
         print(ansi.bold(row("", names)))
         print()
 
-        expected = [
-            f"{f.score_matrix.lambda_home:.2f} - {f.score_matrix.lambda_away:.2f}"
-            for _, f in forecasts
-        ]
-        print(row("Expected goals", expected))
-        print(row(f"[1] {home} wins", [f"{f.prediction.prob_home_win:5.1%}" for _, f in forecasts]))
-        print(row("[X] Draw", [f"{f.prediction.prob_draw:5.1%}" for _, f in forecasts]))
-        print(row(f"[2] {away} wins", [f"{f.prediction.prob_away_win:5.1%}" for _, f in forecasts]))
-
-        results = [
-            self._outcome_label(f.prediction.predicted_outcome, home, away)
-            for _, f in forecasts
-        ]
-        print(ansi.confirm(row("Most likely result", results)))
+        for label, cells in rows[:-1]:
+            print(row(label, cells))
+        print(ansi.confirm(row(*rows[-1])))
 
         print()
-        depth = min(10, *(len(f.top_scorelines) for _, f in forecasts))
         print("  " + ansi.bold(f"Top {depth} scorelines"))
-        for rank in range(depth):
-            cells = [
-                f"{f.top_scorelines[rank][0]} {f.top_scorelines[rank][1]:4.0%}"
-                for _, f in forecasts
-            ]
-            print(row(f"{rank + 1:>2}.", cells))
+        for label, cells in scoreline_rows:
+            print(row(label, cells))
 
     # ------------------------------------------------------------- visualizacion
     def _maybe_visualise(self, forecast: MatchForecast) -> None:

@@ -11,8 +11,9 @@ from typing import TYPE_CHECKING
 
 import matplotlib
 
-matplotlib.use("Agg")  
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import numpy as np
 import seaborn as sns
 
 from fifa26.domain.entities import MatchPrediction, ScoreMatrix
@@ -81,6 +82,34 @@ class Visualizer:
         ax.bar_label(bars, fmt="%.1f%%", padding=3)
         ax.set_ylim(0, max(values) * 1.2)
         return self._save(fig, "03_outcome_1x2.png")
+
+    def dispersion_comparison(self, scenarios: list[dict]) -> Path:
+        """Compara la distribucion de goles del favorito antes y despues.
+        """
+        n = len(scenarios)
+        fig, axes = plt.subplots(1, n, figsize=(6 * n, 5), sharey=True)
+        if n == 1:
+            axes = [axes]
+        for ax, sc in zip(axes, scenarios):
+            goals = sc["goals"]
+            width = 0.4
+            ax.bar(goals - width / 2, sc["poisson"], width=width,
+                   color="#8d99ae", label="Poisson (antes)")
+            ax.bar(goals + width / 2, sc["nbinom"], width=width,
+                   color="#e63946", label="Negative Binomial (despues)")
+            edges = np.arange(goals[0] - 0.5, goals[-1] + 1.5, 1.0)
+            sns.histplot(sc["mc_samples"], bins=edges,
+                         stat="probability", element="step", fill=False,
+                         color="#1d3557", ax=ax, label="Muestreo compound")
+            ax.set_title(
+                f"{sc['title']}\nλ={sc['lam']:.2f}  D={sc['dispersion']:.2f}"
+            )
+            ax.set_xlabel(f"{sc['team']} goals")
+            ax.set_xticks(goals)
+            ax.legend(fontsize=8)
+        axes[0].set_ylabel("Probability")
+        fig.suptitle("Overdispersion by favoritism · favorite goal distribution")
+        return self._save(fig, "05_dispersion_comparison.png")
 
     def model_comparison(self, results: list[EvaluationResult]) -> Path:
         names = [r.model_name for r in results]
