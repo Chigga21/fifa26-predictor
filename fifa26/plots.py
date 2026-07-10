@@ -1,5 +1,5 @@
 """Visualizaciones de las predicciones con matplotlib y seaborn.
-@author Chigga21
+Autor Chigga21
 """
 from __future__ import annotations
 
@@ -13,27 +13,32 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import numpy as np
 import seaborn as sns
 
-from fifa26.domain.entities import MatchPrediction, ScoreMatrix
-from fifa26.evaluation.metrics import EvaluationResult
+from fifa26.domain import MatchPrediction, ScoreMatrix
 
-if TYPE_CHECKING:  
-    from fifa26.application.prediction_service import MatchForecast
+if TYPE_CHECKING:
+    from fifa26.predictor import MatchForecast
 
 sns.set_theme(style="whitegrid")
 
 
 class Visualizer:
-    """Dibuja las graficas y las guarda en el directorio de salida.
-    """
+    """Dibuja las graficas y las guarda en el directorio de salida."""
 
     def __init__(self, output_dir: str | Path) -> None:
         self._dir = Path(output_dir)
         self._dir.mkdir(parents=True, exist_ok=True)
 
     def score_matrix_heatmap(self, sm: ScoreMatrix) -> Path:
+        """Dibuja el mapa de calor de la matriz de marcadores.
+
+        Args:
+            sm (ScoreMatrix): Matriz conjunta de marcadores.
+
+        Returns:
+            Path: Ruta del PNG guardado.
+        """
         fig, ax = plt.subplots(figsize=(8, 6.5))
         sns.heatmap(
             sm.matrix * 100,
@@ -52,6 +57,15 @@ class Visualizer:
         return self._save(fig, "01_scoreline_matrix.png")
 
     def top_scorelines(self, scorelines: list[tuple[str, float]], sm: ScoreMatrix) -> Path:
+        """Dibuja las barras de los marcadores mas probables.
+
+        Args:
+            scorelines (list[tuple[str, float]]): Marcadores y probabilidad.
+            sm (ScoreMatrix): Matriz del partido para el titulo.
+
+        Returns:
+            Path: Ruta del PNG guardado.
+        """
         labels = [s for s, _ in scorelines]
         values = [p * 100 for _, p in scorelines]
         fig, ax = plt.subplots(figsize=(9, 5.5))
@@ -64,6 +78,14 @@ class Visualizer:
         return self._save(fig, "02_top_scorelines.png")
 
     def outcome_1x2(self, prediction: MatchPrediction) -> Path:
+        """Dibuja las barras de probabilidad 1X2.
+
+        Args:
+            prediction (MatchPrediction): Probabilidades del partido.
+
+        Returns:
+            Path: Ruta del PNG guardado.
+        """
         labels = [
             f"{prediction.home_team} win",
             "Draw",
@@ -83,46 +105,16 @@ class Visualizer:
         ax.set_ylim(0, max(values) * 1.2)
         return self._save(fig, "03_outcome_1x2.png")
 
-    def dispersion_comparison(self, scenarios: list[dict]) -> Path:
-        """Compara la distribucion de goles del favorito antes y despues.
-        """
-        n = len(scenarios)
-        fig, axes = plt.subplots(1, n, figsize=(6 * n, 5), sharey=True)
-        if n == 1:
-            axes = [axes]
-        for ax, sc in zip(axes, scenarios):
-            goals = sc["goals"]
-            width = 0.4
-            ax.bar(goals - width / 2, sc["poisson"], width=width,
-                   color="#8d99ae", label="Poisson (antes)")
-            ax.bar(goals + width / 2, sc["nbinom"], width=width,
-                   color="#e63946", label="Negative Binomial (despues)")
-            edges = np.arange(goals[0] - 0.5, goals[-1] + 1.5, 1.0)
-            sns.histplot(sc["mc_samples"], bins=edges,
-                         stat="probability", element="step", fill=False,
-                         color="#1d3557", ax=ax, label="Muestreo compound")
-            ax.set_title(
-                f"{sc['title']}\nλ={sc['lam']:.2f}  D={sc['dispersion']:.2f}"
-            )
-            ax.set_xlabel(f"{sc['team']} goals")
-            ax.set_xticks(goals)
-            ax.legend(fontsize=8)
-        axes[0].set_ylabel("Probability")
-        fig.suptitle("Overdispersion by favoritism · favorite goal distribution")
-        return self._save(fig, "05_dispersion_comparison.png")
-
-    def model_comparison(self, results: list[EvaluationResult]) -> Path:
-        names = [r.model_name for r in results]
-        values = [r.accuracy * 100 for r in results]
-        fig, ax = plt.subplots(figsize=(7, 5))
-        bars = ax.bar(names, values, color=sns.color_palette("mako", len(names)))
-        ax.set_ylabel("Accuracy 1X2 (%)")
-        ax.set_title("Model comparison · 1X2 accuracy on test (higher = better)")
-        ax.bar_label(bars, fmt="%.1f%%", padding=3)
-        ax.set_ylim(0, max(values) * 1.25)
-        return self._save(fig, "04_model_comparison.png")
-
     def _save(self, fig, filename: str) -> Path:
+        """Guarda la figura y la cierra.
+
+        Args:
+            fig: Figura de matplotlib.
+            filename (str): Nombre del archivo de salida.
+
+        Returns:
+            Path: Ruta del PNG guardado.
+        """
         path = self._dir / filename
         fig.tight_layout()
         fig.savefig(path, dpi=130)
@@ -131,7 +123,14 @@ class Visualizer:
 
 
 def render_match_figures(visualizer: Visualizer, forecast: "MatchForecast") -> list[Path]:
-    """Dibuja las figuras por partido de un pronostico y devuelve sus rutas
+    """Dibuja las figuras por partido de un pronostico.
+
+    Args:
+        visualizer (Visualizer): Dibujante de graficas.
+        forecast (MatchForecast): Pronostico completo del partido.
+
+    Returns:
+        list[Path]: Rutas de los PNG generados.
     """
     return [
         visualizer.score_matrix_heatmap(forecast.score_matrix),
@@ -141,7 +140,11 @@ def render_match_figures(visualizer: Visualizer, forecast: "MatchForecast") -> l
 
 
 def open_figures(paths: list[Path]) -> None:
-    """Abre los PNG guardados con el visor del sistema sin fallar si no puede."""
+    """Abre los PNG guardados con el visor del sistema sin fallar si no puede.
+
+    Args:
+        paths (list[Path]): Rutas de las figuras a abrir.
+    """
     if not sys.stdout.isatty():
         return
     opener = _viewer_command()
@@ -159,6 +162,11 @@ def open_figures(paths: list[Path]) -> None:
 
 
 def _viewer_command() -> list[str] | None:
+    """Elige el comando visor de imagenes de la plataforma.
+
+    Returns:
+        list[str] | None: Comando base o None si no hay visor.
+    """
     if sys.platform == "darwin" and shutil.which("open"):
         return ["open"]
     if sys.platform.startswith("win"):

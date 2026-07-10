@@ -1,10 +1,12 @@
-
+"""Variables compartidas por lado para los modelos de goles.
+Autor Chigga21
+"""
 from __future__ import annotations
 
 import numpy as np
 import pandas as pd
 
-from fifa26.domain.entities import TeamStrength
+from fifa26.domain import TeamStrength
 
 SIDE_FEATURES = [
     "attack",
@@ -16,8 +18,17 @@ SIDE_FEATURES = [
     "is_competitive",
 ]
 
+
 def strength_of(strengths: dict[str, TeamStrength], team: str) -> TeamStrength:
-    """Fuerza del equipo, neutra si no aparece en el diccionario"""
+    """Obtiene la fuerza de un equipo con respaldo neutro.
+
+    Args:
+        strengths (dict[str, TeamStrength]): Fuerzas por equipo.
+        team (str): Nombre del equipo.
+
+    Returns:
+        TeamStrength: Fuerza del equipo, neutra si no aparece.
+    """
     return strengths.get(team, TeamStrength(team, 0.0, 0.0))
 
 
@@ -26,7 +37,16 @@ def side_features(
     strengths: dict[str, TeamStrength],
     scoring: str,
 ) -> pd.DataFrame:
-    """Arma las variables de un lado, local o visitante, para cada fixture"""
+    """Arma las variables de un lado para cada fixture.
+
+    Args:
+        fixtures (pd.DataFrame): Partidos a describir.
+        strengths (dict[str, TeamStrength]): Fuerzas por equipo.
+        scoring (str): Lado que anota, home o away.
+
+    Returns:
+        pd.DataFrame: Variables del lado indicado.
+    """
     if scoring == "home":
         team, opp = fixtures["home_team"], fixtures["away_team"]
         is_home = (~fixtures["neutral"]).astype(float).to_numpy()
@@ -52,10 +72,25 @@ def side_features(
     )
 
 
-def side_strength_gap(
+def strength_gap(
     fixtures: pd.DataFrame,
     strengths: dict[str, TeamStrength],
     scoring: str,
 ) -> np.ndarray:
-    """Brecha de fuerza con signo de un lado, ataque menos defensa rival"""
-    return side_features(fixtures, strengths, scoring)["strength_diff"].to_numpy()
+    """Calcula la brecha de fuerza con signo de un lado.
+
+    Args:
+        fixtures (pd.DataFrame): Partidos a describir.
+        strengths (dict[str, TeamStrength]): Fuerzas por equipo.
+        scoring (str): Lado que anota, home o away.
+
+    Returns:
+        np.ndarray: Ataque propio menos defensa rival por partido.
+    """
+    if scoring == "home":
+        team, opp = fixtures["home_team"], fixtures["away_team"]
+    else:
+        team, opp = fixtures["away_team"], fixtures["home_team"]
+    attack = team.map(lambda t: strength_of(strengths, t).attack).to_numpy()
+    opp_defense = opp.map(lambda t: strength_of(strengths, t).defense).to_numpy()
+    return attack - opp_defense

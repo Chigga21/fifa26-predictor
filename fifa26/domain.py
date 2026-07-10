@@ -1,5 +1,5 @@
 """Entidades y objetos de valor del dominio.
-@author Chigga21
+Autor Chigga21
 """
 from __future__ import annotations
 
@@ -10,8 +10,7 @@ import numpy as np
 
 
 class Outcome(Enum):
-    """Los tres resultados posibles de un partido, 
-    el marcador 1X2."""
+    """Los tres resultados 1X2 posibles de un partido."""
 
     HOME_WIN = "1"
     DRAW = "X"
@@ -19,6 +18,15 @@ class Outcome(Enum):
 
     @staticmethod
     def from_scores(home_score: int, away_score: int) -> "Outcome":
+        """Deriva el resultado 1X2 de un marcador.
+
+        Args:
+            home_score (int): Goles del local.
+            away_score (int): Goles del visitante.
+
+        Returns:
+            Outcome: Resultado del partido.
+        """
         if home_score > away_score:
             return Outcome.HOME_WIN
         if home_score < away_score:
@@ -27,26 +35,9 @@ class Outcome(Enum):
 
 
 @dataclass(frozen=True)
-class Match:
-    """Un partido internacional con marcador a tiempo completo sin penales"""
-
-    date: str
-    home_team: str
-    away_team: str
-    home_score: int
-    away_score: int
-    tournament: str
-    neutral: bool
-
-    @property
-    def actual_outcome(self) -> Outcome:
-        return Outcome.from_scores(self.home_score, self.away_score)
-
-
-@dataclass(frozen=True)
 class TeamStrength:
-    """Ratings ofensivo y defensivo Dixon-Coles de un equipo.
-    """
+    """Ratings ofensivo y defensivo Dixon-Coles de un equipo."""
+
     team: str
     attack: float
     defense: float
@@ -54,10 +45,7 @@ class TeamStrength:
 
 @dataclass(frozen=True)
 class ScoreMatrix:
-    """Probabilidad conjunta de cada marcador exacto de un partido.
-    La celda i, j es la probabilidad de que el local anote i
-      y el visitante j. 
-    """
+    """Probabilidad conjunta de cada marcador exacto de un partido."""
 
     home_team: str
     away_team: str
@@ -65,14 +53,10 @@ class ScoreMatrix:
     lambda_away: float
     matrix: np.ndarray
 
-    @property
-    def max_goals(self) -> int:
-        return self.matrix.shape[0] - 1
-
 
 @dataclass(frozen=True)
 class MatchPrediction:
-    """Probabilidades 1X2 de un partido y el resultado mas probable que derivan"""
+    """Probabilidades 1X2 de un partido y su resultado mas probable."""
 
     home_team: str
     away_team: str
@@ -82,6 +66,7 @@ class MatchPrediction:
 
     @property
     def predicted_outcome(self) -> Outcome:
+        """Resultado con la probabilidad mas alta."""
         probs = {
             Outcome.HOME_WIN: self.prob_home_win,
             Outcome.DRAW: self.prob_draw,

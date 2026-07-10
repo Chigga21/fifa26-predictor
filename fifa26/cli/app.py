@@ -1,41 +1,79 @@
-"""Clase que implementa la experiencia de UI de terminal
-impresa de manera continua.
-
-@author Chigga21
+"""Experiencia de UI de terminal impresa como stream continuo.
+Autor Chigga21
 """
 from __future__ import annotations
 
-from fifa26.application.prediction_service import (
-    MatchForecast,
-    PredictionService,
-)
-from fifa26.application.training import Trainer, TrainedArtifacts
+from pathlib import Path
+
+from fifa26.predictor import MatchForecast, PredictionService
+from fifa26.training import Trainer, TrainedArtifacts
 from fifa26.cli import ansi
-from fifa26.cli.banner import render_header
-from fifa26.cli.prompt import read_line
-from fifa26.cli.selector import TeamSelector
-from fifa26.cli.indicator import ProgressIndicator
-from fifa26.cli.spinner import run_with_dots, run_with_spinner
-from fifa26.domain.entities import Outcome
-from fifa26.prediction.outcome import OutcomeCalculator
-from fifa26.visualization.plots import Visualizer, open_figures, render_match_figures
+from fifa26.cli.menu import read_line, select_team
+from fifa26.cli.indicator import ProgressIndicator, run_with_dots, run_with_spinner
+from fifa26.domain import Outcome
+from fifa26.plots import Visualizer, open_figures, render_match_figures
+
+AUTHOR = "Said Apis (Chigga21)"
+SUBTITLE = "World Cup 2026 Match Predictor"
+
+# La raiz del proyecto esta dos niveles arriba de este archivo.
+_TITLE_PATH = Path(__file__).resolve().parents[2] / "TITLE.txt"
+
+_FALLBACK = r"""
+ _    _  ___ ___  __    ___  ___ ___ ___ ___ ___ _____ ___  ___
+| |  | |/ __|_  )/ /   | _ \| _ \ __|   \_ _/ __|_   _/ _ \| _ \
+| |/\| | (__ / // _ \  |  _/|   / _|| |) | | (__  | || (_) |   /
+|__/\__|\___/___\___/  |_|  |_|_\___|___/___\___| |_| \___/|_|_\
+""".strip("\n")
+
+
+def _load_logo() -> str:
+    """Carga el logo desde TITLE.txt con respaldo integrado.
+
+    Returns:
+        str: Texto ASCII del logo.
+    """
+    try:
+        text = _TITLE_PATH.read_text(encoding="utf-8")
+    except OSError:
+        return _FALLBACK
+    lines = text.rstrip("\n").split("\n")
+    return "\n".join(lines) if any(line.strip() for line in lines) else _FALLBACK
+
+
+def render_header() -> None:
+    """Imprime el logo en color, el autor centrado y el subtitulo."""
+    logo = _load_logo()
+    width = max((len(line) for line in logo.splitlines()), default=0)
+    author = f"By {AUTHOR}".center(width)
+    print(ansi.title(logo))
+    print()
+    print(ansi.title(author))
+    print()
+    print(ansi.heading(SUBTITLE))
+    print()
 
 
 class InteractiveApp:
+    """Conduce el flujo interactivo de entrenamiento y pronostico."""
+
     def __init__(
         self,
         trainer: Trainer,
-        outcome_calculator: OutcomeCalculator,
         visualizer: Visualizer,
     ) -> None:
         self._trainer = trainer
-        self._outcome = outcome_calculator
         self._visualizer = visualizer
         self._service: PredictionService | None = None
         self._generate_graphs = False
         self._run_cv = False
 
     def run(self) -> int:
+        """Corre la aplicacion completa.
+
+        Returns:
+            int: Codigo de salida del proceso.
+        """
         try:
             if not self._main_menu():
                 return 0
@@ -56,31 +94,22 @@ class InteractiveApp:
         return 0
 
     def _main_menu(self) -> bool:
-        """Banner de bienvenida y configuracion de arranque
-        Pregunta al usuario si se generarán gráficos o no de los resultados.
+        """Muestra el banner y la configuracion de arranque.
+
+        Returns:
+            bool: Verdadero si el usuario decide continuar.
         """
         render_header()
-        print(
-            "Generate graphs:   "
-            + " [ Y ] yes"
-            + "    [ N ] no   "
-            + ansi.hint("( Enter = no )")
+        self._generate_graphs = self._ask_yes_no(
+            "Generate graphs",
+            "when on, figures are saved to outputs/ and opened after each prediction",
+            "graphs",
         )
-        print(ansi.hint("when on, figures are saved to outputs/ and opened after each prediction"))
-        self._generate_graphs = self._ask({"y": "yes", "n": "no", "enter": "no"}) == "yes"
-        print("  " + ansi.hint(f"graphs: {'ON' if self._generate_graphs else 'OFF'}"))
-        print()
-
-        print(
-            "Rolling cross-validation:   "
-            + " [ Y ] yes"
-            + "    [ N ] no   "
-            + ansi.hint("( Enter = no )")
+        self._run_cv = self._ask_yes_no(
+            "Rolling cross-validation",
+            "compares models over several seasons before training, slower",
+            "cross-validation",
         )
-        print(ansi.hint("compares models over several seasons before training, slower"))
-        self._run_cv = self._ask({"y": "yes", "n": "no", "enter": "no"}) == "yes"
-        print("  " + ansi.hint(f"cross-validation: {'ON' if self._run_cv else 'OFF'}"))
-        print()
 
         print("  The following ML models will be trained:")
         for name in self._trainer.model_names:
@@ -89,10 +118,33 @@ class InteractiveApp:
         print("  " + ansi.hint("[ Enter ] continue    [ Q ] quit"))
         return self._ask({"enter": "go", "q": "quit"}) == "go"
 
+    def _ask_yes_no(self, title: str, help_text: str, state_label: str) -> bool:
+        """Pregunta si o no con Enter como no y muestra el estado elegido.
+
+        Args:
+            title (str): Titulo de la pregunta.
+            help_text (str): Ayuda breve bajo la pregunta.
+            state_label (str): Etiqueta del estado impreso al confirmar.
+
+        Returns:
+            bool: Verdadero si el usuario eligio si.
+        """
+        print(
+            f"{title}:   "
+            + " [ Y ] yes"
+            + "    [ N ] no   "
+            + ansi.hint("( Enter = no )")
+        )
+        print(ansi.hint(help_text))
+        enabled = self._ask({"y": "yes", "n": "no", "enter": "no"}) == "yes"
+        print("  " + ansi.hint(f"{state_label}: {'ON' if enabled else 'OFF'}"))
+        print()
+        return enabled
+
     def _prepare_service(self) -> None:
-        """Entrena los modelos y construye el servicio de prediccion con el resultado"""
+        """Entrena los modelos y construye el servicio de prediccion."""
         artifacts = self._train()
-        self._service = PredictionService.from_artifacts(artifacts, self._outcome)
+        self._service = PredictionService(artifacts)
 
     def _cross_validate(self) -> None:
         """Ejecuta la validacion cruzada de origen movil y muestra una tabla."""
@@ -110,6 +162,11 @@ class InteractiveApp:
         print()
 
     def _train(self) -> TrainedArtifacts:
+        """Conduce el entrenamiento completo con feedback en pantalla.
+
+        Returns:
+            TrainedArtifacts: Artefactos listos para predecir.
+        """
         print()
         train, test = run_with_spinner(
             "Loading and cleaning data", self._trainer.load_and_split
@@ -168,12 +225,15 @@ class InteractiveApp:
         return artifacts
 
     def _run_verbose(self, model, label, fn):
-        """Ajusta un modelo verboso mostrando puntos animados que se refrescan
-        con cada mensaje de progreso del propio modelo.
+        """Ajusta un modelo verboso refrescando la etiqueta con su progreso.
 
-        El indicador anima en su hilo y model.on_progress solo cambia la
-        etiqueta, asi el mensaje de fase queda vivo aunque el muestreo acapare
-        el hilo principal. Al terminar se fija la ultima linea de diagnostico.
+        Args:
+            model: Modelo con callback on_progress.
+            label: Etiqueta inicial del indicador.
+            fn: Tarea de ajuste a ejecutar.
+
+        Returns:
+            El resultado de la tarea.
         """
         indicator = ProgressIndicator(label, style="dots", dim=True, indent="    ").start()
         model.on_progress = indicator.update
@@ -188,10 +248,11 @@ class InteractiveApp:
         return result
 
     def _predict_loop(self) -> None:
+        """Repite el ciclo de eleccion de partido y pronostico."""
         assert self._service is not None
-        selector = TeamSelector(self._service.teams)
+        teams = self._service.teams
         while True:
-            matchup = self._choose_matchup(selector)
+            matchup = self._choose_matchup(teams)
             if matchup is None:
                 if self._ask_quit():
                     return
@@ -213,12 +274,20 @@ class InteractiveApp:
             if self._ask({"n": "again", "enter": "again", "q": "quit"}) == "quit":
                 return
 
-    def _choose_matchup(self, selector: TeamSelector):
-        home = selector.select("[ 2 ] Select Team A (local)")
+    def _choose_matchup(self, teams: list[str]):
+        """Pide los dos equipos y la sede.
+
+        Args:
+            teams (list[str]): Equipos disponibles.
+
+        Returns:
+            tuple | None: Local, visitante y sede neutral, o None si cancela.
+        """
+        home = select_team(teams, "[ 2 ] Select Team A (local)")
         if home is None:
             return None
-        away = selector.select(
-            f"[ 3 ] Select Team B (away)   -   opponent of {home}", exclude=home
+        away = select_team(
+            teams, f"[ 3 ] Select Team B (away)   -   opponent of {home}", exclude=home
         )
         if away is None:
             return None
@@ -226,6 +295,14 @@ class InteractiveApp:
         return home, away, neutral
 
     def _choose_venue(self, home: str) -> bool:
+        """Pregunta si la sede es neutral o local.
+
+        Args:
+            home (str): Equipo que jugaria en casa.
+
+        Returns:
+            bool: Verdadero si la sede es neutral.
+        """
         print()
         print(ansi.heading("[ 4 ] Match venue"))
         print()
@@ -236,7 +313,16 @@ class InteractiveApp:
         return self._ask({"n": "neutral", "enter": "neutral", "h": "home"}) == "neutral"
 
     def _confirm(self, home: str, away: str, neutral: bool) -> str:
-        """Devuelve la accion elegida: 'ok', 'edit' o 'quit' (sin usar excepciones)."""
+        """Pide confirmar el partido armado.
+
+        Args:
+            home (str): Equipo local.
+            away (str): Equipo visitante.
+            neutral (bool): Si la sede es neutral.
+
+        Returns:
+            str: Accion elegida, ok, edit o quit.
+        """
         print()
         print(ansi.heading("[ 5 ] Confirm match "))
         print()

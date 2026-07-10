@@ -1,7 +1,5 @@
 """Estimador de fuerzas ofensiva y defensiva Dixon-Coles.
-Se encarga de las variables intermedias para entrenar
-a los modelos
-@author Chigga21
+Autor Chigga21
 """
 from __future__ import annotations
 
@@ -12,15 +10,17 @@ import pandas as pd
 from scipy.optimize import minimize
 from scipy.special import gammaln
 
-from fifa26.domain.entities import TeamStrength
+from fifa26.domain import TeamStrength
 
 
 def _match_importance(tournaments: pd.Series) -> np.ndarray:
-    """Peso de importancia por tipo de torneo al estilo del ranking FIFA.
+    """Asigna un peso de importancia por tipo de torneo.
 
-    Los amistosos pesan menos y la fase final del Mundial pesa mas, de modo que
-    los partidos competitivos influyen mas en las fuerzas estimadas. Las reglas
-    son por coincidencia de texto y los valores son ajustables.
+    Args:
+        tournaments (pd.Series): Nombre del torneo de cada partido.
+
+    Returns:
+        np.ndarray: Peso de cada partido, mayor en torneos competitivos.
     """
     names = tournaments.astype(str)
     weight = np.full(len(names), 1.5, dtype=float)
@@ -46,6 +46,8 @@ def _match_importance(tournaments: pd.Series) -> np.ndarray:
 
 
 class DixonColesEstimator:
+    """Estima ataque, defensa, ventaja local y rho por maxima verosimilitud."""
+
     def __init__(self, half_life_days: int = 540, max_iter: int = 2000) -> None:
         self._half_life_days = half_life_days
         self._max_iter = max_iter
@@ -56,6 +58,14 @@ class DixonColesEstimator:
         self._teams: list[str] = []
 
     def fit(self, matches: pd.DataFrame) -> "DixonColesEstimator":
+        """Ajusta los parametros del modelo sobre los partidos dados.
+
+        Args:
+            matches (pd.DataFrame): Partidos limpios de entrenamiento.
+
+        Returns:
+            DixonColesEstimator: El propio estimador ajustado.
+        """
         self._teams = sorted(set(matches["home_team"]) | set(matches["away_team"]))
         index = {t: i for i, t in enumerate(self._teams)}
         n = len(self._teams)
@@ -98,6 +108,14 @@ class DixonColesEstimator:
         return self
 
     def _time_weights(self, dates: pd.Series) -> np.ndarray:
+        """Calcula el decaimiento exponencial por antiguedad.
+
+        Args:
+            dates (pd.Series): Fecha de cada partido.
+
+        Returns:
+            np.ndarray: Peso temporal de cada partido.
+        """
         latest = dates.max()
         age_days = (latest - dates).dt.days.to_numpy()
         xi = np.log(2) / self._half_life_days
@@ -105,6 +123,15 @@ class DixonColesEstimator:
 
     @staticmethod
     def _unpack(params: np.ndarray, n: int):
+        """Separa el vector de parametros en sus componentes centrados.
+
+        Args:
+            params (np.ndarray): Vector plano del optimizador.
+            n (int): Numero de equipos.
+
+        Returns:
+            tuple: mu, gamma, rho y los arrays de ataque y defensa.
+        """
         mu, gamma, rho = params[0], params[1], params[2]
         attack = params[3 : 3 + n]
         defense = params[3 + n : 3 + 2 * n]
@@ -116,6 +143,22 @@ class DixonColesEstimator:
     def _neg_log_likelihood(
         cls, params, hi, ai, hs, as_, home_adv, weights, log_fact, n
     ) -> float:
+        """Evalua la log-verosimilitud negativa ponderada.
+
+        Args:
+            params: Vector plano de parametros.
+            hi: Indices de los equipos locales.
+            ai: Indices de los visitantes.
+            hs: Goles del local.
+            as_: Goles del visitante.
+            home_adv: Indicador de ventaja local.
+            weights: Peso de cada partido.
+            log_fact: Log factorial de los marcadores.
+            n: Numero de equipos.
+
+        Returns:
+            float: Log-verosimilitud negativa total.
+        """
         mu, gamma, rho, attack, defense = cls._unpack(params, n)
         log_lh = mu + gamma * home_adv + attack[hi] - defense[ai]
         log_la = mu + attack[ai] - defense[hi]
@@ -134,7 +177,21 @@ class DixonColesEstimator:
     def _neg_log_likelihood_grad(
         cls, params, hi, ai, hs, as_, home_adv, weights, log_fact, n
     ) -> np.ndarray:
-        """Gradiente analitico de la log-verosimilitud negativa.
+        """Calcula el gradiente analitico de la log-verosimilitud negativa.
+
+        Args:
+            params: Vector plano de parametros.
+            hi: Indices de los equipos locales.
+            ai: Indices de los visitantes.
+            hs: Goles del local.
+            as_: Goles del visitante.
+            home_adv: Indicador de ventaja local.
+            weights: Peso de cada partido.
+            log_fact: Log factorial de los marcadores.
+            n: Numero de equipos.
+
+        Returns:
+            np.ndarray: Gradiente respecto a cada parametro.
         """
         mu, gamma, rho, attack, defense = cls._unpack(params, n)
         log_lh = mu + gamma * home_adv + attack[hi] - defense[ai]
@@ -178,6 +235,18 @@ class DixonColesEstimator:
 
     @staticmethod
     def _tau(hs, as_, lam_h, lam_a, rho) -> np.ndarray:
+        """Aplica la correccion Dixon-Coles a los marcadores bajos.
+
+        Args:
+            hs: Goles del local.
+            as_: Goles del visitante.
+            lam_h: Goles esperados del local.
+            lam_a: Goles esperados del visitante.
+            rho: Parametro de correlacion.
+
+        Returns:
+            np.ndarray: Factor tau de cada partido.
+        """
         tau = np.ones_like(lam_h, dtype=float)
         m00 = (hs == 0) & (as_ == 0)
         m01 = (hs == 0) & (as_ == 1)

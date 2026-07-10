@@ -1,15 +1,5 @@
-"""Indicador de progreso con animacion desacoplada del computo.
-
-La animacion vive en su propio hilo daemon y se refresca a intervalo fijo,
-de modo que el indicador nunca se congela aunque el hilo principal este
-ocupado con una tarea pesada como el muestreo MCMC o el ajuste Dixon-Coles.
-Escribe sobre el stream de terminal capturado al construir, no sobre sys.stdout
-vivo, asi la animacion sigue visible aunque un paso redirija sys.stdout para
-silenciar a PyMC. Ofrece dos estilos, un spinner que termina en done y unos
-puntos suspensivos que animan sin riesgo de quedar congelados a mitad de
-fotograma.
-
-@author Chigga21
+"""Indicador de progreso con animacion en hilo propio, desacoplada del computo.
+Autor Chigga21
 """
 from __future__ import annotations
 
@@ -28,13 +18,7 @@ _DOT_FRAMES = ("", ".", "..", "...")
 
 
 class ProgressIndicator:
-    """Anima una linea de estado en un hilo aparte mientras corre el computo.
-
-    El estilo spinner cierra con un marcador done y el estilo dots se limita a
-    animar puntos suspensivos, util cuando un spinner se veria congelado al
-    terminar una tarea lenta. La etiqueta puede cambiar en vivo con update,
-    pensado para que los callbacks de progreso refresquen el mensaje mostrado.
-    """
+    """Anima una linea de estado en un hilo aparte mientras corre el computo."""
 
     def __init__(
         self,
@@ -68,16 +52,25 @@ class ProgressIndicator:
 
     @property
     def label(self) -> str:
-        """La etiqueta mostrada en este momento, leida de forma segura."""
+        """Etiqueta mostrada en este momento, leida de forma segura."""
         with self._lock:
             return self._label
 
     def update(self, label: str) -> None:
-        """Cambia la etiqueta mostrada sin cortar la animacion."""
+        """Cambia la etiqueta mostrada sin cortar la animacion.
+
+        Args:
+            label (str): Nueva etiqueta a mostrar.
+        """
         with self._lock:
             self._label = label
 
     def start(self) -> "ProgressIndicator":
+        """Arranca la animacion si hay terminal.
+
+        Returns:
+            ProgressIndicator: El propio indicador.
+        """
         if not self._tty:
             # Sin terminal no se anima: se imprime una vez y se sigue.
             self._write(f"{self._indent}* {self._label}\n")
@@ -88,6 +81,12 @@ class ProgressIndicator:
         return self
 
     def stop(self, done_message: str | None = None) -> None:
+        """Detiene la animacion y deja la linea final.
+
+        Args:
+            done_message (str | None): Texto final, vacio omite la linea y
+                None cierra con el marcador done.
+        """
         if not self._tty:
             return
         self._stop.set()
@@ -109,6 +108,7 @@ class ProgressIndicator:
 
     # ----------------------------------------------------------------- internos
     def _animate(self) -> None:
+        """Refresca el fotograma a intervalo fijo hasta que se detenga."""
         tick = 0
         while not self._stop.is_set():
             with self._lock:
@@ -119,6 +119,15 @@ class ProgressIndicator:
             time.sleep(self._interval)
 
     def _frame(self, label: str, tick: int) -> str:
+        """Compone el fotograma actual segun el estilo.
+
+        Args:
+            label (str): Etiqueta a mostrar.
+            tick (int): Numero de fotograma.
+
+        Returns:
+            str: Linea lista para escribir.
+        """
         if self._style == "dots":
             dots = _DOT_FRAMES[tick % len(_DOT_FRAMES)]
             label = self._truncate(label, len(self._indent) + len(_DOT_FRAMES[-1]))
@@ -131,10 +140,14 @@ class ProgressIndicator:
         return f"{self._indent}{marker} {label}"
 
     def _truncate(self, label: str, reserved: int) -> str:
-        """Recorta la etiqueta para que el fotograma quepa en una sola fila.
+        """Recorta la etiqueta para que el fotograma quepa en una fila.
 
-        reserved es el ancho que ocupan el sangrado y el marcador o los puntos,
-        asi el texto visible nunca supera el ancho de la terminal ni se envuelve.
+        Args:
+            label (str): Etiqueta a recortar.
+            reserved (int): Ancho ocupado por sangrado y marcador.
+
+        Returns:
+            str: Etiqueta que cabe en la terminal.
         """
         room = self._width - reserved - 1
         if 0 < room < len(label):
@@ -142,6 +155,14 @@ class ProgressIndicator:
         return label
 
     def _final_line(self, done_message: str | None) -> str:
+        """Compone la linea final tras detener la animacion.
+
+        Args:
+            done_message (str | None): Texto final solicitado.
+
+        Returns:
+            str: Linea final o cadena vacia.
+        """
         if done_message == "":
             return ""
         if done_message is not None:
@@ -155,10 +176,14 @@ class ProgressIndicator:
         return f"{self._indent}{done} {label}"
 
     def _paint(self, text: str, *codes: str) -> str:
-        """Aplica codigos ANSI segun el color fijado al construir, no el actual.
+        """Aplica codigos ANSI segun el color fijado al construir.
 
-        Se usa la decision capturada en lugar de los helpers de ansi porque
-        estos consultan sys.stdout, que puede estar redirigido durante el paso.
+        Args:
+            text (str): Texto a estilizar.
+            *codes (str): Codigos SGR a aplicar.
+
+        Returns:
+            str: Texto estilizado o intacto sin color.
         """
         if not codes or not self._color:
             return text
@@ -181,10 +206,17 @@ def run_with_indicator(
     dim: bool = False,
     indent: str = "  ",
 ) -> T:
-    """Corre fn mostrando el indicador animado y devuelve su resultado.
+    """Corre la funcion mostrando el indicador animado.
 
-    fn se ejecuta en el hilo que llama mientras la animacion corre en su propio
-    hilo, asi el indicador sigue vivo aunque el computo acapare el procesador.
+    Args:
+        label (str): Etiqueta mostrada durante la tarea.
+        fn (Callable): Tarea a ejecutar en el hilo que llama.
+        style (str): Estilo de animacion, spinner o dots.
+        dim (bool): Si la etiqueta va con bajo enfasis.
+        indent (str): Sangrado de la linea animada.
+
+    Returns:
+        T: Resultado de la tarea.
     """
     indicator = ProgressIndicator(label, style=style, dim=dim, indent=indent).start()
     try:
@@ -194,3 +226,30 @@ def run_with_indicator(
         raise
     indicator.stop()
     return result
+
+
+def run_with_spinner(label: str, fn: Callable[[], T]) -> T:
+    """Corre la funcion con el spinner animado y cierre en done.
+
+    Args:
+        label (str): Etiqueta mostrada junto al spinner.
+        fn (Callable): Tarea a ejecutar.
+
+    Returns:
+        T: Resultado de la tarea.
+    """
+    return run_with_indicator(label, fn, style="spinner")
+
+
+def run_with_dots(label: str, fn: Callable[[], T], *, dim: bool = True) -> T:
+    """Corre la funcion con puntos suspensivos animados.
+
+    Args:
+        label (str): Etiqueta mostrada junto a los puntos.
+        fn (Callable): Tarea a ejecutar.
+        dim (bool): Si la etiqueta va con bajo enfasis.
+
+    Returns:
+        T: Resultado de la tarea.
+    """
+    return run_with_indicator(label, fn, style="dots", dim=dim)

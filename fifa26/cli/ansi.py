@@ -1,8 +1,5 @@
-"""Utilidades de estilo ANSI para la UI de la terminal 
-Controla además el color y estilo semántico de los textos 
-mostrados en pantalla (negritas, bajo enfasis, etc...)
-
-@author Chigga21
+"""Utilidades de estilo ANSI y estados semanticos de color para la terminal.
+Autor Chigga21
 """
 from __future__ import annotations
 
@@ -31,8 +28,11 @@ _FG = {
 
 
 def color_enabled() -> bool:
-    """El color esta activo salvo que se desactive
-      o el stream no sea una terminal"""
+    """Indica si el color esta activo.
+
+    Returns:
+        bool: Falso con NO_COLOR, FIFA26_NO_COLOR o sin terminal.
+    """
     if os.environ.get("NO_COLOR") is not None:
         return False
     if os.environ.get("FIFA26_NO_COLOR") is not None:
@@ -41,19 +41,41 @@ def color_enabled() -> bool:
 
 
 def _wrap(text: str, *codes: str) -> str:
+    """Envuelve el texto con codigos SGR si el color esta activo.
+
+    Args:
+        text (str): Texto a estilizar.
+        *codes (str): Codigos SGR a aplicar.
+
+    Returns:
+        str: Texto estilizado o intacto sin color.
+    """
     if not codes or not color_enabled():
         return text
     return "".join(codes) + text + RESET
 
+
 def bold(text: str) -> str:
+    """Aplica negrita al texto."""
     return _wrap(text, BOLD)
 
 
 def dim(text: str) -> str:
+    """Aplica bajo enfasis al texto."""
     return _wrap(text, DIM)
 
 
 def color(text: str, name: str, *, bold_: bool = False) -> str:
+    """Aplica un color con nombre al texto.
+
+    Args:
+        text (str): Texto a estilizar.
+        name (str): Nombre del color en la paleta.
+        bold_ (bool): Si ademas aplica negrita.
+
+    Returns:
+        str: Texto estilizado.
+    """
     codes = (_FG.get(name, ""),)
     if bold_:
         codes = (BOLD,) + codes
@@ -61,61 +83,59 @@ def color(text: str, name: str, *, bold_: bool = False) -> str:
 
 
 def title(text: str) -> str:
-    """El logo y nombre del producto, en blanco y negrita."""
+    """Estiliza el logo y nombre del producto."""
     return color(text, "bright_white", bold_=True)
 
 
 def heading(text: str) -> str:
-    """Un encabezado de pantalla o seccion."""
+    """Estiliza un encabezado de pantalla o seccion."""
     return color(text, "cyan", bold_=True)
 
 
 def focused(text: str) -> str:
-    """La opcion bajo el cursor en un menu, junto a un marcador entre corchetes"""
+    """Estiliza la opcion bajo el cursor en un menu."""
     return color(text, "bright_yellow", bold_=True)
 
 
 def active(text: str) -> str:
-    """Una eleccion que el usuario ya fijo, junto al marcador [X]"""
+    """Estiliza una eleccion que el usuario ya fijo."""
     return color(text, "bright_green", bold_=True)
 
 
-def confirm(text: str) -> str:
-    """Un resultado final o pronostico que conviene destacar"""
-    return color(text, "bright_green", bold_=True)
+# Un resultado final o pronostico que conviene destacar, mismo estilo que active.
+confirm = active
 
 
 def hint(text: str) -> str:
-    """Texto de ayuda de bajo enfasis, como los atajos de teclado"""
+    """Estiliza el texto de ayuda de bajo enfasis."""
     return dim(text)
 
 
 def error(text: str) -> str:
+    """Estiliza un mensaje de error."""
     return color(text, "bright_red", bold_=True)
 
+
 def hide_cursor() -> None:
+    """Oculta el cursor de la terminal."""
     if color_enabled():
         sys.stdout.write("\033[?25l")
         sys.stdout.flush()
 
 
 def show_cursor() -> None:
+    """Muestra el cursor de la terminal."""
     if color_enabled():
         sys.stdout.write("\033[?25h")
         sys.stdout.flush()
 
 
 def move_up(lines: int) -> None:
-    """Sube el cursor el numero de filas dado, para redibujar el estilo
-    del menu
+    """Sube el cursor para redibujar un bloque en sitio.
+
+    Args:
+        lines (int): Numero de filas a subir.
     """
     if lines > 0 and sys.stdout.isatty():
         sys.stdout.write(f"\033[{lines}A")
-        sys.stdout.flush()
-
-
-def clear_line() -> None:
-    """Borra la linea actual y devuelve el cursor a su inicio."""
-    if sys.stdout.isatty():
-        sys.stdout.write("\r\033[2K")
         sys.stdout.flush()
