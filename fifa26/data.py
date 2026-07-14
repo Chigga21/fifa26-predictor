@@ -17,9 +17,44 @@ REQUIRED_COLUMNS = (
     "neutral",
 )
 
+SHOOTOUT_COLUMNS = (
+    "date",
+    "home_team",
+    "away_team",
+    "winner",
+)
+
+GOALSCORER_COLUMNS = (
+    "date",
+    "home_team",
+    "away_team",
+    "team",
+    "minute",
+)
+
+
+def _load_csv(path: str | Path, required: tuple[str, ...]) -> pd.DataFrame:
+    """Lee un CSV del dataset y valida sus columnas.
+
+    Args:
+        path (str | Path): Ruta del archivo CSV.
+        required (tuple[str, ...]): Columnas obligatorias.
+
+    Returns:
+        pd.DataFrame: Filas crudas del archivo.
+    """
+    path = Path(path)
+    if not path.exists():
+        raise FileNotFoundError(f"No se encontró el dataset: {path}")
+    df = pd.read_csv(path)
+    missing = set(required) - set(df.columns)
+    if missing:
+        raise ValueError(f"Faltan columnas en el dataset: {sorted(missing)}")
+    return df
+
 
 def load_matches(path: str | Path) -> pd.DataFrame:
-    """Lee el CSV del dataset y valida sus columnas.
+    """Lee el CSV de partidos y valida sus columnas.
 
     Args:
         path (str | Path): Ruta del archivo results.csv.
@@ -27,13 +62,57 @@ def load_matches(path: str | Path) -> pd.DataFrame:
     Returns:
         pd.DataFrame: Partidos crudos del dataset.
     """
-    path = Path(path)
-    if not path.exists():
-        raise FileNotFoundError(f"No se encontró el dataset: {path}")
-    df = pd.read_csv(path)
-    missing = set(REQUIRED_COLUMNS) - set(df.columns)
-    if missing:
-        raise ValueError(f"Faltan columnas en el dataset: {sorted(missing)}")
+    return _load_csv(path, REQUIRED_COLUMNS)
+
+
+def load_shootouts(path: str | Path) -> pd.DataFrame:
+    """Lee el CSV de tandas de penales y valida sus columnas.
+
+    Args:
+        path (str | Path): Ruta del archivo shootouts.csv.
+
+    Returns:
+        pd.DataFrame: Tandas de penales crudas del dataset.
+    """
+    return _load_csv(path, SHOOTOUT_COLUMNS)
+
+
+def load_goalscorers(path: str | Path) -> pd.DataFrame:
+    """Lee el CSV de goleadores y valida sus columnas.
+
+    Args:
+        path (str | Path): Ruta del archivo goalscorers.csv.
+
+    Returns:
+        pd.DataFrame: Goles crudos con su minuto.
+    """
+    return _load_csv(path, GOALSCORER_COLUMNS)
+
+
+def apply_regulation_scores(
+    matches: pd.DataFrame, goalscorers: pd.DataFrame
+) -> pd.DataFrame:
+    """Resta los goles de la prorroga para dejar el marcador de 90 minutos.
+
+    Args:
+        matches (pd.DataFrame): Partidos crudos con marcador final.
+        goalscorers (pd.DataFrame): Goles crudos con su minuto.
+
+    Returns:
+        pd.DataFrame: Partidos con el marcador al minuto 90.
+    """
+    df = matches.copy()
+    minutes = pd.to_numeric(goalscorers["minute"], errors="coerce")
+    extra = goalscorers[minutes > 90]
+    if extra.empty:
+        return df
+    key = ["date", "home_team", "away_team"]
+    counts = extra.groupby(key + ["team"]).size().reset_index(name="extra_goals")
+    for side in ("home", "away"):
+        side_counts = counts[counts["team"] == counts[f"{side}_team"]]
+        merged = df.merge(side_counts[key + ["extra_goals"]], on=key, how="left")
+        corrected = df[f"{side}_score"] - merged["extra_goals"].fillna(0).to_numpy()
+        df[f"{side}_score"] = corrected.clip(lower=0)
     return df
 
 

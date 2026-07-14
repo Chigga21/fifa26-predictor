@@ -5,10 +5,8 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from fifa26.domain.entities import TeamStrength
-from fifa26.evaluation.cross_validation import rolling_origin_evaluate
-from fifa26.features.dixon_coles import DixonColesEstimator
-from fifa26.prediction.outcome import OutcomeCalculator
+from fifa26.models.dixon_coles import DixonColesEstimator
+from fifa26.pipeline.training import rolling_origin_evaluate
 
 
 class _ConstantModel:
@@ -56,7 +54,6 @@ def test_rolling_origin_evaluate_promedia_por_modelo():
         matches,
         DixonColesEstimator(),
         models,
-        OutcomeCalculator(),
         test_years=[2022, 2023],
     )
     assert set(results) == {"home-lean", "away-lean"}

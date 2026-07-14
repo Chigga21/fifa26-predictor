@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import math
 
-from fifa26.domain.entities import MatchPrediction, Outcome
-from fifa26.evaluation.metrics import (
+from fifa26.domain import MatchPrediction, Outcome
+from fifa26.pipeline.training import (
     brier_1x2,
     evaluate_1x2,
     log_loss_1x2,

@@ -5,19 +5,18 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fifa26.predictor import MatchForecast, PredictionService
-from fifa26.training import Trainer, TrainedArtifacts
+from fifa26.pipeline.predictor import MatchForecast, PredictionService
+from fifa26.pipeline.training import Trainer, TrainedArtifacts
 from fifa26.cli import ansi
 from fifa26.cli.menu import read_line, select_team
 from fifa26.cli.indicator import ProgressIndicator, run_with_dots, run_with_spinner
 from fifa26.domain import Outcome
-from fifa26.plots import Visualizer, open_figures, render_match_figures
+from fifa26.cli.plots import Visualizer, open_figures, render_match_figures
 
 AUTHOR = "Said Apis (Chigga21)"
 SUBTITLE = "World Cup 2026 Match Predictor"
 
-# La raiz del proyecto esta dos niveles arriba de este archivo.
-_TITLE_PATH = Path(__file__).resolve().parents[2] / "TITLE.txt"
+_TITLE_PATH = Path(__file__).resolve().parents[2] / "static/TITLE.txt"
 
 _FALLBACK = r"""
  _    _  ___ ___  __    ___  ___ ___ ___ ___ ___ _____ ___  ___
@@ -202,6 +201,11 @@ class InteractiveApp:
             "Refitting offensive and defensive strengths with Dixon–Coles",
             self._trainer.fit_production_features,
         )
+        summary = run_with_dots(
+            "Calibrating penalty shootout model on historical shootouts",
+            self._trainer.fit_shootout,
+        )
+        print("    " + ansi.hint(summary))
         for model in self._trainer.models:
             label = f"Refitting model {model.name}"
             if getattr(model, "verbose_training", False):
@@ -352,15 +356,13 @@ class InteractiveApp:
             for _, f in forecasts
         ]
 
-        # Filas principales de la tabla. Se recogen antes de imprimir para medir
-        # el ancho real del contenido y evitar que un nombre de pais largo, en la
-        # etiqueta o en la celda de resultado, descuadre las columnas.
+        # Filas principales de la tabla.
         rows = [
             ("Expected goals", expected),
-            (f"[1] {home} wins", [f"{f.prediction.prob_home_win:5.1%}" for _, f in forecasts]),
-            ("[X] Draw", [f"{f.prediction.prob_draw:5.1%}" for _, f in forecasts]),
-            (f"[2] {away} wins", [f"{f.prediction.prob_away_win:5.1%}" for _, f in forecasts]),
-            ("Most likely result", results),
+            (f"[1] {home} wins (90')", [f"{f.prediction.prob_home_win:5.1%}" for _, f in forecasts]),
+            ("[X] Draw (90')", [f"{f.prediction.prob_draw:5.1%}" for _, f in forecasts]),
+            (f"[2] {away} wins (90')", [f"{f.prediction.prob_away_win:5.1%}" for _, f in forecasts]),
+            ("Most likely result (90')", results),
         ]
 
         depth = min(10, *(len(f.top_scorelines) for _, f in forecasts))
@@ -375,9 +377,17 @@ class InteractiveApp:
             for rank in range(depth)
         ]
 
+        # La tanda es condicional al empate a los 90 y no toca las filas de arriba.
+        shootout_rows = [
+            (f"{home} wins shootout", [f"{f.shootout.prob_home:5.1%}" for _, f in forecasts]),
+            (f"{away} wins shootout", [f"{f.shootout.prob_away:5.1%}" for _, f in forecasts]),
+            (f"{home} advances", [f"{f.prob_advance_home:5.1%}" for _, f in forecasts]),
+            (f"{away} advances", [f"{f.prob_advance_away:5.1%}" for _, f in forecasts]),
+        ]
+
         # Ancho de la etiqueta y de cada columna medidos sobre todo el contenido,
         # con un minimo para que las tablas cortas conserven su forma habitual.
-        all_rows = [("", names), *rows, *scoreline_rows]
+        all_rows = [("", names), *rows, *scoreline_rows, *shootout_rows]
         label_w = max(22, *(len(label) for label, _ in all_rows)) + 2
         col_w = max(16, *(len(cell) for _, cells in all_rows for cell in cells)) + 2
 
@@ -385,21 +395,23 @@ class InteractiveApp:
             body = "".join(f"{c:<{col_w}}" for c in cells)
             return f"  {label:<{label_w}}{body}"
 
-        # Cabecera con el nombre de cada modelo. El color envuelve toda la linea
-        # para no romper el ancho de las columnas.
+        # Cabecera con el nombre de cada modelo. 
         print(ansi.bold(row("", names)))
         print()
-
         for label, cells in rows[:-1]:
             print(row(label, cells))
         print(ansi.confirm(row(*rows[-1])))
 
         print()
-        print("  " + ansi.bold(f"Top {depth} scorelines"))
+        print("  " + ansi.bold(f"Top {depth} scorelines (90')"))
         for label, cells in scoreline_rows:
             print(row(label, cells))
 
-    # ------------------------------------------------------------- visualizacion
+        print()
+        print("  " + ansi.bold("Penalty shootout (if tied after 90 minutes)"))
+        for label, cells in shootout_rows:
+            print(row(label, cells))
+
     def _maybe_visualise(self, forecast: MatchForecast) -> None:
         """Dibuja las graficas si estan activas."""
         if not self._generate_graphs:

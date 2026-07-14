@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pandas as pd
 
-from fifa26.data.cleaning import MatchCleaner
+from fifa26.data import clean_matches
 
 
 def _raw(rows):
@@ -15,7 +15,7 @@ def test_filtra_anos_y_castea_marcadores():
         ["2017-01-01", "A", "B", "1", "0", "Friendly", "FALSE"],  # antes de min_year
         ["2020-06-01", "A", "B", "2", "1", "Friendly", "TRUE"],
     ])
-    out = MatchCleaner(min_year=2018, min_matches_per_team=1).clean(raw)
+    out = clean_matches(raw, min_year=2018, min_matches_per_team=1)
     assert len(out) == 1
     assert out["year"].iloc[0] == 2020
     assert out["home_score"].dtype.kind == "i"
@@ -27,7 +27,7 @@ def test_descarta_marcadores_nulos():
         ["2020-01-01", "A", "B", None, "1", "Friendly", "FALSE"],
         ["2020-02-01", "A", "B", "1", "1", "Friendly", "FALSE"],
     ])
-    out = MatchCleaner(min_year=2018, min_matches_per_team=1).clean(raw)
+    out = clean_matches(raw, min_year=2018, min_matches_per_team=1)
     assert len(out) == 1
 
 
@@ -38,14 +38,14 @@ def test_neutral_acepta_varias_codificaciones():
         ["2020-03-01", "A", "B", "1", "0", "Friendly", "false"],
         ["2020-04-01", "A", "B", "1", "0", "Friendly", "0"],
     ])
-    out = MatchCleaner(min_year=2018, min_matches_per_team=1).clean(raw)
+    out = clean_matches(raw, min_year=2018, min_matches_per_team=1)
     assert out["neutral"].tolist() == [True, True, False, False]
 
 
 def test_descarta_equipos_raros():
     rows = [["2020-01-0%d" % (i + 1), "A", "B", "1", "0", "Friendly", "FALSE"] for i in range(3)]
     rows.append(["2020-02-01", "A", "C", "1", "0", "Friendly", "FALSE"])  # C aparece una vez
-    out = MatchCleaner(min_year=2018, min_matches_per_team=3).clean(_raw(rows))
+    out = clean_matches(_raw(rows), min_year=2018, min_matches_per_team=3)
     teams = set(out["home_team"]) | set(out["away_team"])
     assert "C" not in teams
     assert {"A", "B"} <= teams

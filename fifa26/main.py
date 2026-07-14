@@ -24,15 +24,16 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
 
-from fifa26.training import Trainer  # noqa: E402
+from fifa26.pipeline.training import Trainer  # noqa: E402
 from fifa26.cli.app import InteractiveApp  # noqa: E402
-from fifa26.dixon_coles import DixonColesEstimator  # noqa: E402
-from fifa26.models import (  # noqa: E402
+from fifa26.models.dixon_coles import DixonColesEstimator  # noqa: E402
+from fifa26.models.goals import (  # noqa: E402
     BayesianPoissonModel,
     CalibratedGoalModel,
     XGBoostGoalModel,
 )
-from fifa26.plots import Visualizer  # noqa: E402
+from fifa26.models.shootout import ShootoutModel  # noqa: E402
+from fifa26.cli.plots import Visualizer  # noqa: E402
 
 DATA_DIR = ROOT / "data" / "external" / "international_results"
 OUTPUT_DIR = ROOT / "outputs"
@@ -54,10 +55,18 @@ def build_trainer() -> Trainer:
         xgboost,
         BayesianPoissonModel(draws=1000, tune=1000, chains=4),
     ]
+    shootout = ShootoutModel(
+        dixon_coles_factory=lambda: DixonColesEstimator(
+            half_life_days=DIXON_COLES_HALF_LIFE_DAYS
+        ),
+    )
     return Trainer(
         results_csv=DATA_DIR / "results.csv",
+        shootouts_csv=DATA_DIR / "shootouts.csv",
+        goalscorers_csv=DATA_DIR / "goalscorers.csv",
         dixon_coles=dixon_coles,
         models=models,
+        shootout=shootout,
         test_year=2025,
         max_goals=10,
     )

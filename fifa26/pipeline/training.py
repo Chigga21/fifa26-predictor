@@ -9,11 +9,18 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
-from fifa26.data import clean_matches, load_matches
-from fifa26.dixon_coles import DixonColesEstimator
+from fifa26.data import (
+    apply_regulation_scores,
+    clean_matches,
+    load_goalscorers,
+    load_matches,
+    load_shootouts,
+)
+from fifa26.models.dixon_coles import DixonColesEstimator
 from fifa26.domain import MatchPrediction, Outcome, TeamStrength
-from fifa26.models import CalibratedDispersionEstimator, GoalModel
-from fifa26.score_matrix import NegativeBinomialMatrixBuilder, to_prediction
+from fifa26.models.goals import CalibratedDispersionEstimator, GoalModel
+from fifa26.models.score_matrix import NegativeBinomialMatrixBuilder, to_prediction
+from fifa26.models.shootout import ShootoutModel
 
 _ORDER = (Outcome.HOME_WIN, Outcome.DRAW, Outcome.AWAY_WIN)
 
@@ -259,6 +266,7 @@ class TrainedArtifacts:
     strengths: dict[str, TeamStrength]
     matrix_builder: NegativeBinomialMatrixBuilder
     dispersion: CalibratedDispersionEstimator
+    shootout: ShootoutModel
     teams: list[str]
     train: pd.DataFrame
     test: pd.DataFrame
@@ -270,18 +278,25 @@ class Trainer:
     def __init__(
         self,
         results_csv,
+        shootouts_csv,
+        goalscorers_csv,
         dixon_coles: DixonColesEstimator,
         models: list[GoalModel],
+        shootout: ShootoutModel,
         test_year: int = 2024,
         max_goals: int = 10,
     ) -> None:
         self._results_csv = results_csv
+        self._shootouts_csv = shootouts_csv
+        self._goalscorers_csv = goalscorers_csv
         self._dixon_coles = dixon_coles
         self._models = models
+        self._shootout = shootout
         self._test_year = test_year
         self._max_goals = max_goals
 
         # Estado que se va poblando paso a paso
+        self.raw: pd.DataFrame | None = None
         self.full: pd.DataFrame | None = None
         self.train: pd.DataFrame | None = None
         self.test: pd.DataFrame | None = None
@@ -293,17 +308,40 @@ class Trainer:
         self._actual: list[Outcome] = []
 
     def load_and_split(self) -> tuple[pd.DataFrame, pd.DataFrame]:
-        """Carga, limpia y divide los partidos con un split temporal.
+        """Carga, corrige a 90 minutos, limpia y divide con un split temporal.
 
         Returns:
             tuple[pd.DataFrame, pd.DataFrame]: Entrenamiento y prueba.
         """
-        matches = clean_matches(load_matches(self._results_csv))
+        matches = clean_matches(self._load_regulation())
         self.full = matches.copy()
         # Split temporal para comparar modelos sin fuga de datos
         self.train = matches[matches["year"] < self._test_year].copy()
         self.test = matches[matches["year"] == self._test_year].copy()
         return self.train, self.test
+
+    def _load_regulation(self) -> pd.DataFrame:
+        """Carga los partidos crudos con el marcador ajustado a 90 minutos.
+
+        Returns:
+            pd.DataFrame: Partidos crudos sin los goles de la prorroga.
+        """
+        if self.raw is None:
+            self.raw = apply_regulation_scores(
+                load_matches(self._results_csv),
+                load_goalscorers(self._goalscorers_csv),
+            )
+        return self.raw
+
+    def fit_shootout(self) -> str:
+        """Calibra el modelo de la tanda de penales con las tandas historicas.
+
+        Returns:
+            str: Resumen de los coeficientes calibrados.
+        """
+        shootouts = load_shootouts(self._shootouts_csv)
+        self._shootout.fit(shootouts, self._load_regulation())
+        return self._shootout.summary()
 
     def _fit_stack(
         self, matches: pd.DataFrame
@@ -406,6 +444,7 @@ class Trainer:
             strengths=self.strengths,
             matrix_builder=self.matrix_builder,
             dispersion=self.dispersion,
+            shootout=self._shootout,
             teams=self.teams,
             train=self.train,
             test=self.test,
@@ -435,7 +474,7 @@ class Trainer:
         Returns:
             dict[str, EvaluationResult]: Metricas promedio por modelo.
         """
-        matches = clean_matches(load_matches(self._results_csv))
+        matches = clean_matches(self._load_regulation())
         return rolling_origin_evaluate(
             matches, self._dixon_coles, self._models, years, self._max_goals
         )

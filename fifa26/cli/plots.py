@@ -18,7 +18,7 @@ import seaborn as sns
 from fifa26.domain import MatchPrediction, ScoreMatrix
 
 if TYPE_CHECKING:
-    from fifa26.predictor import MatchForecast
+    from fifa26.pipeline.predictor import MatchForecast
 
 sns.set_theme(style="whitegrid")
 
@@ -51,7 +51,7 @@ class Visualizer:
         ax.set_xlabel(f"{sm.away_team} goals (away)")
         ax.set_ylabel(f"{sm.home_team} goals (home)")
         ax.set_title(
-            f"Scoreline matrix  {sm.home_team} vs {sm.away_team}\n"
+            f"Scoreline matrix (90 minutes)  {sm.home_team} vs {sm.away_team}\n"
             f"λ_home={sm.lambda_home:.2f}  λ_away={sm.lambda_away:.2f}"
         )
         return self._save(fig, "01_scoreline_matrix.png")
@@ -72,7 +72,7 @@ class Visualizer:
         sns.barplot(x=values, y=labels, hue=labels, palette="rocket", legend=False, ax=ax)
         ax.set_xlabel("Probability (%)")
         ax.set_ylabel("Scoreline (home-away)")
-        ax.set_title(f"Top {len(scorelines)} most likely scorelines  {sm.home_team} vs {sm.away_team}")
+        ax.set_title(f"Top {len(scorelines)} most likely scorelines (90')  {sm.home_team} vs {sm.away_team}")
         for i, v in enumerate(values):
             ax.text(v + 0.1, i, f"{v:.1f}%", va="center")
         return self._save(fig, "02_top_scorelines.png")
@@ -100,7 +100,7 @@ class Visualizer:
         colors = ["#2a9d8f", "#e9c46a", "#e76f51"]
         bars = ax.bar(labels, values, color=colors)
         ax.set_ylabel("Probability (%)")
-        ax.set_title(f"1X2 probabilities  {prediction.home_team} vs {prediction.away_team}")
+        ax.set_title(f"1X2 probabilities (90 minutes)  {prediction.home_team} vs {prediction.away_team}")
         ax.bar_label(bars, fmt="%.1f%%", padding=3)
         ax.set_ylim(0, max(values) * 1.2)
         return self._save(fig, "03_outcome_1x2.png")

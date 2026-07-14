@@ -55,6 +55,16 @@ class ScoreMatrix:
 
 
 @dataclass(frozen=True)
+class ShootoutPrediction:
+    """Probabilidad de cada equipo de ganar la tanda de penales."""
+
+    home_team: str
+    away_team: str
+    prob_home: float
+    prob_away: float
+
+
+@dataclass(frozen=True)
 class MatchPrediction:
     """Probabilidades 1X2 de un partido y su resultado mas probable."""
 

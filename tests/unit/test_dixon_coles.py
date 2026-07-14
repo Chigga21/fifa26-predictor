@@ -7,7 +7,7 @@ import pandas as pd
 from scipy.optimize import check_grad
 from scipy.special import gammaln
 
-from fifa26.features.dixon_coles import DixonColesEstimator, _match_importance
+from fifa26.models.dixon_coles import DixonColesEstimator, _match_importance
 
 
 def test_match_importance_asigna_los_niveles_esperados():

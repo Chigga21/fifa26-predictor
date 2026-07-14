@@ -7,10 +7,10 @@ from dataclasses import dataclass
 
 import pandas as pd
 
-from fifa26.domain import MatchPrediction, ScoreMatrix
-from fifa26.models import GoalModel
-from fifa26.score_matrix import to_prediction, top_scorelines
-from fifa26.training import TrainedArtifacts
+from fifa26.domain import MatchPrediction, ScoreMatrix, ShootoutPrediction
+from fifa26.models.goals import GoalModel
+from fifa26.models.score_matrix import to_prediction, top_scorelines
+from fifa26.pipeline.training import TrainedArtifacts
 
 
 @dataclass(frozen=True)
@@ -20,6 +20,9 @@ class MatchForecast:
     score_matrix: ScoreMatrix
     prediction: MatchPrediction
     top_scorelines: list[tuple[str, float]]
+    shootout: ShootoutPrediction
+    prob_advance_home: float
+    prob_advance_away: float
 
 
 class PredictionService:
@@ -29,6 +32,8 @@ class PredictionService:
         self._models = list(artifacts.models)
         self._matrix_builder = artifacts.matrix_builder
         self._dispersion = artifacts.dispersion
+        self._shootout = artifacts.shootout
+        self._strengths = artifacts.strengths
         self._teams = list(artifacts.teams)
 
     @property
@@ -105,6 +110,18 @@ class PredictionService:
         )
         prediction = to_prediction(score_matrix)
         top = top_scorelines(score_matrix, top_n=top_n)
+        # La tanda solo aplica si el partido sigue empatado tras los 90 minutos.
+        # No modifica las probabilidades de tiempo regular, solo las compone.
+        shootout = self._shootout.predict(
+            self._strengths[home_team], self._strengths[away_team], neutral
+        )
         return MatchForecast(
-            score_matrix=score_matrix, prediction=prediction, top_scorelines=top
+            score_matrix=score_matrix,
+            prediction=prediction,
+            top_scorelines=top,
+            shootout=shootout,
+            prob_advance_home=prediction.prob_home_win
+            + prediction.prob_draw * shootout.prob_home,
+            prob_advance_away=prediction.prob_away_win
+            + prediction.prob_draw * shootout.prob_away,
         )

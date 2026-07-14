@@ -1,0 +1,14 @@
+name: fifa26
+channels:
+  - conda-forge
+dependencies:
+  - python=3.13
+  - pandas>=2.0
+  - numpy>=1.24
+  - matplotlib>=3.7
+  - seaborn>=0.12
+  - scipy>=1.10
+  - pymc>=5.10
+  - xgboost>=2.0
+  - arviz<1.0  # 1.x elimino arviz.concat que pymc 5.x aun importa
+  - pytest
