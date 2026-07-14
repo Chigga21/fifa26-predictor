@@ -8,15 +8,15 @@
 
 Using the [**international_results**](https://github.com/martj42/international_results) dataset, the system estimates each national team's offensive and defensive strength through a Dixon-Coles model. With those estimates, two expected-goals approaches are trained:
 
-- A Bayesian MCMC model (PyMC + NUTS)
+- A Bayesian MCMC model 
 - An XGBoost Tweedie regression
 
-Expected goals are converted into a joint scoreline matrix using **Negative Binomial distributions**. The resulting matrix is used to compute the final 1X2 probabilities. The terminal UI lets you compare both models side by side.
+Expected goals are converted into a joint scoreline matrix using **Negative Binomial distributions**. The resulting matrix is used to compute the final 1X2 probabilities.
 
 ## Requirements
 
 - Linux, macOS or Windows with a terminal
-- [Miniconda](https://docs.conda.io/en/latest/miniconda.html)
+- Miniconda
 - git (with submodule support)
 
 ## Installing Miniconda
@@ -33,22 +33,16 @@ This will reload your shell configuration and make the `conda` command available
 
 ## Cloning the repository
 
-The match dataset resides on a git submodule:
+The match dataset resides on a git submodule, clone the repository with:
 
 ```bash
 git clone --recurse-submodules https://github.com/Chigga21/fifa26-predictor.git
 cd fifa26-predictor
 ```
 
-### Initializing the submodule (if you already cloned without it)
-
-```bash
-git submodule update --init --recursive
-```
-
 ### Updating the submodule later
 
-To pull the latest matches from the upstream dataset:
+To pull the latest matches from the upstream dataset, run:
 
 ```bash
 git submodule update --remote data/external/international_results
@@ -70,13 +64,11 @@ With the `fifa26` environment active, launch the interactive terminal UI:
 ```bash
 python fifa26/main.py
 ```
-
-You will see the ASCII logo, the startup menu, arrow-key team selection and the 1X2 forecast for both models.
-
-Disable ANSI colours if your terminal does not support them:
+> [!WARNING]
+> Disable ANSI colours if your terminal does not support them:
 
 ```bash
-NO_COLOR=1 python fifa26/main.py
+NO_COLOR=1 python fifa26/main.py 
 ```
 
 > [!IMPORTANT]
@@ -85,44 +77,16 @@ NO_COLOR=1 python fifa26/main.py
 <table align="center">
   <tr>
     <td align="center">
-      <img src="static/terminal.jpg" alt="Terminal" width="500"/>
+      <img src="static/terminal.jpg" alt="Terminal" width="400"/>
     </td>
-    <td width="10"></td>
+    <td width="2"></td>
     <td align="center">
-      <img src="static/apuesta.jpg" alt="Prediction" width="480"/>
+      <img src="static/apuesta.jpg" alt="Prediction" width="450"/>
     </td>
   </tr>
 </table>
 
 That said, the program has personally produced accurate results on a few occasions. This should be considered anecdotal and not a reliable statistical basis.
-
-## Project structure
-
-```
-fifa26-predictor/
-├── environment.yml          
-├── fifa26/
-│   ├── main.py              
-│   ├── domain.py            
-│   ├── data.py              
-│   ├── models/
-│   │   ├── dixon_coles.py   
-│   │   ├── goals.py        
-│   │   └── score_matrix.py  
-│   ├── pipeline/
-│   │   ├── training.py      
-│   │   └── predictor.py     
-│   └── cli/
-│       ├── ansi.py          
-│       ├── menu.py          
-│       ├── indicator.py     
-│       ├── plots.py         
-│       └── app.py           
-├── scripts/                 
-├── tests/                                      
-├── static/                  
-└── data/external/           
-```
 
 ## Testing
 
