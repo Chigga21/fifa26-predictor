@@ -77,11 +77,21 @@ NO_COLOR=1 python fifa26/main.py
 <table align="center">
   <tr>
     <td align="center">
-      <img src="static/terminal.jpg" alt="Terminal" width="400"/>
+      <img src="static/terminal.jpg" alt="Terminal" width="500"/>
     </td>
     <td width="2"></td>
     <td align="center">
-      <img src="static/apuesta.jpg" alt="Prediction" width="450"/>
+      <img src="static/apuesta.jpg" alt="Prediction" width="350"/>
+    </td>
+  </tr>
+
+  <tr>
+    <td align="center">
+      <img src="static/terminal2.jpg" alt="Terminal 2" width="500"/>
+    </td>
+    <td width="2"></td>
+    <td align="center">
+      <img src="static/apuesta2.jpg" alt="Prediction 2" width="360"/>
     </td>
   </tr>
 </table>
